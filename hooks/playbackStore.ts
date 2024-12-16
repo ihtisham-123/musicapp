@@ -1,6 +1,8 @@
-import {create} from 'zustand';
+import { create } from 'zustand';
 import { Audio } from 'expo-av';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NavigationProp } from '@react-navigation/native';
 
 // Define track interface
 interface Track {
@@ -12,19 +14,19 @@ interface Track {
 
 // Music player store interface
 interface MusicPlayerState {
-  // Current track state
   currentTrack: Track | null;
   isPlaying: boolean;
   sound: Audio.Sound | null;
   isLiked: boolean;
   likedTracks: Track[];
 
-  // Track management methods
-  loadTrack: (track: Track, source: 'search' | 'albumMix' | 'likedSongs') => Promise<void>;
+  loadTrack: (
+    track: Track,
+    source: 'search' | 'albumMix' | 'likedSongs',
+    navigation: NavigationProp<any> // Accepts navigation dynamically
+  ) => Promise<void>;
   togglePlay: () => Promise<void>;
   toggleLike: () => Promise<void>;
-  
-  // Liked tracks management
   fetchLikedTracks: () => Promise<void>;
   clearSound: () => Promise<void>;
 }
@@ -38,7 +40,7 @@ const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   likedTracks: [],
 
   // Load and prepare a new track
-  loadTrack: async (track, source) => {
+  loadTrack: async (track, source, navigation) => {
     const { clearSound } = get();
 
     // Clear any existing sound
@@ -54,10 +56,10 @@ const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       // Check if track is liked
       const likedTracks = await AsyncStorage.getItem('likedTracks');
       const parsedLikedTracks = likedTracks ? JSON.parse(likedTracks) : [];
-      
+
       const isCurrentTrackLiked = parsedLikedTracks.some(
-        (likedTrack: Track) => 
-          likedTrack.title === track.title && 
+        (likedTrack: Track) =>
+          likedTrack.title === track.title &&
           likedTrack.artist === track.artist
       );
 
@@ -65,7 +67,7 @@ const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
         currentTrack: track,
         sound: newSound,
         isLiked: isCurrentTrackLiked,
-        likedTracks: parsedLikedTracks
+        likedTracks: parsedLikedTracks,
       });
 
       // Setup playback status update
@@ -75,12 +77,17 @@ const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
         }
       });
     } catch (error) {
-      console.error("Error loading track:", error);
+      Alert.alert(
+        'Unable to play track',
+        'Could not load the track. Redirecting to the Play screen.'
+      );
+      navigation.navigate('AlbumMixList'); // Redirect using passed navigation
+      console.error('Error loading track:', error);
       throw error;
     }
   },
 
-  // Toggle play/pause
+  // Other methods remain the same...
   togglePlay: async () => {
     const { sound, isPlaying, currentTrack } = get();
 
@@ -97,12 +104,11 @@ const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
         set({ isPlaying: true });
       }
     } catch (error) {
-      console.error("Error toggling play:", error);
+      console.error('Error toggling play:', error);
       throw error;
     }
   },
 
-  // Toggle like status
   toggleLike: async () => {
     const { currentTrack, isLiked, likedTracks } = get();
 
@@ -112,60 +118,56 @@ const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       let updatedLikedTracks;
 
       if (isLiked) {
-        // Remove from liked tracks
         updatedLikedTracks = likedTracks.filter(
-          (track) => 
-            !(track.title === currentTrack.title && track.artist === currentTrack.artist)
+          (track) =>
+            !(
+              track.title === currentTrack.title &&
+              track.artist === currentTrack.artist
+            )
         );
       } else {
-        // Add to liked tracks
-        updatedLikedTracks = [
-          ...likedTracks, 
-          currentTrack
-        ];
+        updatedLikedTracks = [...likedTracks, currentTrack];
       }
 
-      // Save to AsyncStorage
-      await AsyncStorage.setItem('likedTracks', JSON.stringify(updatedLikedTracks));
+      await AsyncStorage.setItem(
+        'likedTracks',
+        JSON.stringify(updatedLikedTracks)
+      );
 
-      // Update state
-      set({ 
+      set({
         isLiked: !isLiked,
-        likedTracks: updatedLikedTracks 
+        likedTracks: updatedLikedTracks,
       });
     } catch (error) {
-      console.error("Error toggling like:", error);
+      console.error('Error toggling like:', error);
       throw error;
     }
   },
 
-  // Fetch liked tracks
   fetchLikedTracks: async () => {
     try {
       const likedTracks = await AsyncStorage.getItem('likedTracks');
       const parsedLikedTracks = likedTracks ? JSON.parse(likedTracks) : [];
-      
       set({ likedTracks: parsedLikedTracks });
     } catch (error) {
-      console.error("Error fetching liked tracks:", error);
+      console.error('Error fetching liked tracks:', error);
       throw error;
     }
   },
 
-  // Clear current sound
   clearSound: async () => {
     const { sound } = get();
-    
+
     try {
       await sound?.unloadAsync();
-      set({ 
-        sound: null, 
-        isPlaying: false 
+      set({
+        sound: null,
+        isPlaying: false,
       });
     } catch (error) {
-      console.error("Error clearing sound:", error);
+      console.error('Error clearing sound:', error);
     }
-  }
+  },
 }));
 
 export default useMusicPlayerStore;

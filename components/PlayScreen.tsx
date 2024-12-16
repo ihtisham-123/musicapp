@@ -69,8 +69,8 @@ const PlayScreen = ({ route, navigation }: any) => {
         // Load track using Zustand store
         await loadTrack(trackDetails, route.params.source);
       } catch (error) {
-        console.error("Error initializing track:", error);
-        Alert.alert('Error', 'Unable to load track.');
+        // console.error("Error initializing track:", error);
+        // Alert.alert('Error', 'Unable to load track.');
       }
     };
 
