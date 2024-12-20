@@ -16,6 +16,7 @@ import ArtistLogin from '../ArtistLogin';
 
 
 
+
 const Stack = createStackNavigator();
 
 export default function HomeScreen() {
